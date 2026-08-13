@@ -184,9 +184,9 @@ function roadCenterX(z){
 
 /* ---- biome zones (blended, endless) ---- */
 const BIOME_PRESETS = {
-  forest:{ amp:[12,20], density:0.31, coast:0, low:[0.055,0.15,0.045], high:[0.22,0.39,0.12] },
-  hills: { amp:[26,38], density:0.15, coast:0, low:[0.16,0.19,0.10], high:[0.40,0.42,0.24] },
-  coast: { amp:[7,12],  density:0.07, coast:1, low:[0.22,0.29,0.13], high:[0.40,0.46,0.25] },
+  forest:{ amp:[12,20], density:0.31, coast:0, low:[0.048,0.085,0.038], high:[0.20,0.28,0.11] },
+  hills: { amp:[26,38], density:0.15, coast:0, low:[0.15,0.155,0.095], high:[0.36,0.34,0.20] },
+  coast: { amp:[7,12],  density:0.07, coast:1, low:[0.19,0.21,0.13], high:[0.34,0.35,0.21] },
 };
 const BIOME_TYPES = ['forest','hills','coast'];
 let zones = [ makeZone(0, 'forest') ];
@@ -240,10 +240,16 @@ function sampleTerrain(x,z){
     h = h*(1-f) + (-3)*f;
     if(seaSide>55 && b.coast>0.5) watery = true;
   }
-  const lateral = Math.abs(x-roadX);
-  if(lateral<7){
-    const blend = 1-Math.min(1,lateral/7);
-    h = h*(1-blend)+roadHeight(z)*blend;
+  // Use the true perpendicular distance to the road centerline (not a raw x-offset) so the
+  // carved shoulder tracks the road correctly through curves instead of narrowing on bends,
+  // which used to let terrain poke up through the asphalt on tight turns.
+  const CARVE_WIDTH = 9.5;
+  const lateral = roadLateralDistance(x,z);
+  if(lateral<CARVE_WIDTH){
+    const blend = smoothstep(1-lateral/CARVE_WIDTH);
+    // Carve a touch below the actual road surface so the two never fight for the same depth
+    // regardless of how finely the ground grid happens to sample this stretch.
+    h = h*(1-blend)+(roadHeight(z)-0.05)*blend;
   }
   const norm = clamp((h+b.amp)/(2*b.amp), 0, 1);
   let color = lerpColor(b.low, b.high, norm);
@@ -273,24 +279,24 @@ function drivingSurfaceHeight(x,z){
    VEHICLES
 ============================================================ */
 const VEHICLE_SPECS = {
-  convertible:{ name:'Convertible', color:'#c1503f', cabin:'#e9e4d8', w:1.9,h:0.85,len:4.1, wheelR:0.37,wheelW:0.28, cabinH:0.42, cabinLenFrac:0.42, cabinOffsetZ:0.15, wheelZ:[1.35,-1.35], speedMul:1.15, maxMph:80, eye:1.15, fwd:1.6 },
-  vintage:{ name:'Vintage Car', color:'#6fada6', cabin:'#f3ede0', w:1.9,h:1.05,len:4.3, wheelR:0.4,wheelW:0.3, cabinH:0.6, cabinLenFrac:0.5, cabinOffsetZ:0.2, wheelZ:[1.4,-1.4], speedMul:0.9, maxMph:66, eye:1.35, fwd:1.4 },
-  campervan:{ name:'Camper Van', color:'#dba955', cabin:'#2a3038', w:2.05,h:1.75,len:4.7, wheelR:0.42,wheelW:0.32, cabinH:0,cabinLenFrac:0,cabinOffsetZ:0, wheelZ:[1.55,-1.55], speedMul:0.85, maxMph:60, eye:1.85, fwd:1.9 },
-  pickup:{ name:'Pickup Truck', color:'#7c8a70', cabin:'#232a24', w:2.0,h:1.0,len:4.9, wheelR:0.44,wheelW:0.34, cabinH:0.7, cabinLenFrac:0.4, cabinOffsetZ:1.05, wheelZ:[1.65,-1.65], speedMul:1.0, maxMph:70, eye:1.6, fwd:1.7 },
-  motorcycle:{ name:'Motorcycle', color:'#232a34', cabin:null, w:0.5,h:0.5,len:1.9, wheelR:0.36,wheelW:0.22, cabinH:0,cabinLenFrac:0,cabinOffsetZ:0, wheelZ:[0.75,-0.75], speedMul:1.1, maxMph:90, eye:1.25, fwd:0.9, single:true },
+  convertible:{ name:'Convertible', color:'#c1503f', cabin:'#e9e4d8', w:1.9,h:0.85,len:4.1, wheelR:0.37,wheelW:0.28, cabinH:0.42, cabinLenFrac:0.42, cabinOffsetZ:0.15, wheelZ:[1.35,-1.35], speedMul:1.15, maxMph:106, eye:1.15, fwd:1.6 },
+  vintage:{ name:'Vintage Car', color:'#6fada6', cabin:'#f3ede0', w:1.9,h:1.05,len:4.3, wheelR:0.4,wheelW:0.3, cabinH:0.6, cabinLenFrac:0.5, cabinOffsetZ:0.2, wheelZ:[1.4,-1.4], speedMul:0.9, maxMph:86, eye:1.35, fwd:1.4 },
+  campervan:{ name:'Camper Van', color:'#dba955', cabin:'#2a3038', w:2.05,h:1.75,len:4.7, wheelR:0.42,wheelW:0.32, cabinH:0,cabinLenFrac:0,cabinOffsetZ:0, wheelZ:[1.55,-1.55], speedMul:0.85, maxMph:78, eye:1.85, fwd:1.9 },
+  pickup:{ name:'Pickup Truck', color:'#7c8a70', cabin:'#232a24', w:2.0,h:1.0,len:4.9, wheelR:0.44,wheelW:0.34, cabinH:0.7, cabinLenFrac:0.4, cabinOffsetZ:1.05, wheelZ:[1.65,-1.65], speedMul:1.0, maxMph:92, eye:1.6, fwd:1.7 },
+  motorcycle:{ name:'Motorcycle', color:'#232a34', cabin:null, w:0.5,h:0.5,len:1.9, wheelR:0.36,wheelW:0.22, cabinH:0,cabinLenFrac:0,cabinOffsetZ:0, wheelZ:[0.75,-0.75], speedMul:1.1, maxMph:120, eye:1.25, fwd:0.9, single:true },
 };
 const VEHICLE_ORDER = ['convertible','vintage','campervan','pickup','motorcycle'];
 
 function buildVehicle(key){
   const s = VEHICLE_SPECS[key];
   const g = new THREE.Group();
-  const paint = new THREE.MeshStandardMaterial({ color:s.color, roughness:0.27, metalness:0.42 });
-  const rubber = new THREE.MeshStandardMaterial({ color:0x111317, roughness:0.76, metalness:0.03 });
-  const alloy = new THREE.MeshStandardMaterial({ color:0xaeb5b7, roughness:0.23, metalness:0.9 });
-  const glass = new THREE.MeshStandardMaterial({ color:0x182832, roughness:0.08, metalness:0.15, transparent:true, opacity:0.88, side:THREE.DoubleSide });
-  const trim = new THREE.MeshStandardMaterial({ color:0x171c20, roughness:0.32, metalness:0.8 });
-  const lamp = new THREE.MeshStandardMaterial({ color:0xfff2c2, emissive:0xffbe64, emissiveIntensity:0.3, roughness:0.18 });
-  const redLamp = new THREE.MeshStandardMaterial({ color:0x8d1010, emissive:0x5f0000, emissiveIntensity:0.25, roughness:0.2 });
+  const paint = new THREE.MeshStandardMaterial({ color:s.color, roughness:0.34, metalness:0.08, envMapIntensity:0.6 });
+  const rubber = new THREE.MeshStandardMaterial({ color:0x14161a, roughness:0.88, metalness:0.0 });
+  const alloy = new THREE.MeshStandardMaterial({ color:0x9aa1a4, roughness:0.38, metalness:0.75 });
+  const glass = new THREE.MeshStandardMaterial({ color:0x1c2c36, roughness:0.06, metalness:0.05, transparent:true, opacity:0.82, side:THREE.DoubleSide });
+  const trim = new THREE.MeshStandardMaterial({ color:0x1a1e22, roughness:0.48, metalness:0.55 });
+  const lamp = new THREE.MeshStandardMaterial({ color:0xfff2c2, emissive:0xffbe64, emissiveIntensity:0.18, roughness:0.25 });
+  const redLamp = new THREE.MeshStandardMaterial({ color:0x8d1010, emissive:0x5f0000, emissiveIntensity:0.15, roughness:0.28 });
   const add = (mesh)=>{ mesh.castShadow=true; mesh.receiveShadow=true; g.add(mesh); return mesh; };
   const profiled = (points,width,material)=>{
     const shape = new THREE.Shape();
@@ -365,7 +371,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.92;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -379,7 +385,7 @@ window.addEventListener('resize', ()=>{
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-const hemi = new THREE.HemisphereLight(0xffffff,0x22331f,0.8);
+const hemi = new THREE.HemisphereLight(0xdce6ea,0x26301f,0.68);
 scene.add(hemi);
 const sunLight = new THREE.DirectionalLight(0xffffff,1);
 sunLight.castShadow = true;
@@ -424,7 +430,7 @@ stars.visible = false;
 scene.add(stars);
 
 // ground (recentered rolling grid)
-const GROUND_SIZE = 1500, GROUND_SEG = 90;
+const GROUND_SIZE = 1500, GROUND_SEG = 100;
 const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, GROUND_SEG, GROUND_SEG);
 groundGeo.rotateX(-Math.PI/2);
 const gVertCount = groundGeo.attributes.position.count;
@@ -461,19 +467,53 @@ const ground = new THREE.Mesh(groundGeo, groundMat);
 ground.receiveShadow = true;
 scene.add(ground);
 let lastGroundZ = -9999, lastGroundX = 0;
-function rebuildGround(cx,cz){
+// Terrain is expensive to sample (noise + biome blending per vertex), so during the drive we
+// never recompute the whole grid in one frame — that was the source of the periodic stutter.
+// Instead we write into a scratch buffer a chunk at a time across several frames and only swap
+// it into the live geometry once a chunk is fully ready. Before the drive starts we run the
+// same function synchronously once (see rebuildGroundSync) so the world is fully pregenerated
+// and there's no first-frame hitch either.
+const groundScratchPos = new Float32Array(gVertCount*3);
+const groundScratchCol = new Float32Array(gVertCount*3);
+let groundJob = null;
+function computeGroundVertex(i, cx, cz){
+  const pos = groundGeo.attributes.position;
+  const lx = pos.getX(i), lz = pos.getZ(i);
+  const s = sampleTerrain(lx+cx, lz+cz);
+  groundScratchPos[i*3] = lx;
+  groundScratchPos[i*3+1] = s.h;
+  groundScratchPos[i*3+2] = lz;
+  groundScratchCol[i*3] = s.color[0]; groundScratchCol[i*3+1] = s.color[1]; groundScratchCol[i*3+2] = s.color[2];
+}
+function commitGround(cx,cz){
   const pos = groundGeo.attributes.position, col = groundGeo.attributes.color;
-  for(let i=0;i<pos.count;i++){
-    const lx = pos.getX(i), lz = pos.getZ(i);
-    const s = sampleTerrain(lx+cx, lz+cz);
-    pos.setY(i, s.h);
-    col.setXYZ(i, s.color[0], s.color[1], s.color[2]);
-  }
+  pos.array.set(groundScratchPos);
+  col.array.set(groundScratchCol);
   pos.needsUpdate = true; col.needsUpdate = true;
   groundGeo.computeVertexNormals();
   ground.position.set(cx,0,cz);
   terrainTexture.offset.set(cx/GROUND_SIZE*58, cz/GROUND_SIZE*58);
   lastGroundZ = cz; lastGroundX = cx;
+}
+function rebuildGroundSync(cx,cz){
+  for(let i=0;i<gVertCount;i++) computeGroundVertex(i,cx,cz);
+  commitGround(cx,cz);
+  groundJob = null;
+}
+const GROUND_CHUNK = 2200;
+function startGroundRebuild(cx,cz){
+  groundJob = { cx, cz, cursor:0 };
+}
+function stepGroundRebuild(){
+  if(!groundJob) return;
+  const job = groundJob;
+  const end = Math.min(gVertCount, job.cursor+GROUND_CHUNK);
+  for(let i=job.cursor;i<end;i++) computeGroundVertex(i, job.cx, job.cz);
+  job.cursor = end;
+  if(job.cursor>=gVertCount){
+    commitGround(job.cx, job.cz);
+    groundJob = null;
+  }
 }
 
 // A broad, animated ocean surface appears on the sea side of coastal stretches.
@@ -587,8 +627,10 @@ function rebuildRoad(startZ){
 const activeProps = new Map();
 function makeTree(scale){
   const g = new THREE.Group();
-  const bark = new THREE.MeshStandardMaterial({color:0x49351f,roughness:0.95});
-  const foliage = new THREE.MeshStandardMaterial({color:0x275923,roughness:0.88});
+  const shade = 0.85+Math.random()*0.3;
+  const bark = new THREE.MeshStandardMaterial({color:0x3f3122,roughness:0.97,metalness:0.0});
+  const foliageColor = new THREE.Color(0.11*shade,0.20*shade,0.09*shade);
+  const foliage = new THREE.MeshStandardMaterial({color:foliageColor,roughness:0.93,metalness:0.0});
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11*scale,0.17*scale,1.7*scale,9),bark);
   trunk.position.y = 0.85*scale; trunk.castShadow=true; g.add(trunk);
   [[0,2.15,0,1.0],[.42,2.05,.08,.72],[-.42,2.0,-.13,.72],[.06,2.55,.04,.74]].forEach(([x,y,z,sc])=>{
@@ -598,7 +640,8 @@ function makeTree(scale){
   return g;
 }
 function makeRock(scale){
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7*scale,0), new THREE.MeshLambertMaterial({color:0x8a8a86,flatShading:true}));
+  const shade = 0.8+Math.random()*0.3;
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7*scale,0), new THREE.MeshStandardMaterial({color:new THREE.Color(0.42*shade,0.40*shade,0.37*shade),roughness:0.95,metalness:0.0,flatShading:true}));
   m.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);
   m.position.y = 0.35*scale;
   return m;
@@ -627,7 +670,7 @@ function updateProps(carZ){
           const s = sampleTerrain(jx,jz);
           let mesh;
           if(bio.type==='hills' && hash01(c*9,r*5)<0.46){ mesh = makeRock(1.35+hash01(c,r)*1.35); }
-          else { mesh = makeTree(1.55+hash01(r,c)*1.45); }
+          else { mesh = makeTree(2.5+hash01(r,c)*2.1); }
           mesh.position.set(jx, s.h, jz);
           scene.add(mesh);
           activeProps.set(key, mesh);
@@ -664,7 +707,7 @@ const TIME_PRESETS = {
   night: { top:[0.02,0.04,0.08], horizon:[0.06,0.09,0.15], sunColor:0xaeb8d8, sunInt:0.18, hemiSky:0x1a2035, hemiGround:0x05060a, hemiInt:0.25, sunDir:[0.2,0.6,0.35], sunVisColor:0x9aa6c8 }
 };
 let weather = 'clear', timeOfDay = 'day', speedKey = 'cruising', viewMode = 'chase', soundOn=true;
-const SPEED_PRESETS = { leisurely:13, cruising:22, brisk:33 };
+const SPEED_PRESETS = { leisurely:16, cruising:28, brisk:42 };
 
 function applyEnvironment(){
   const tp = TIME_PRESETS[timeOfDay];
@@ -736,7 +779,7 @@ function initAudio(){
 /* ============================================================
    CAR STATE + LOOP
 ============================================================ */
-let carDistance = 0, carX = roadCenterX(0), carHeading = Math.atan2(roadCenterX(1)-roadCenterX(-1),2), curSpeed = 0, carHeight = null;
+let carDistance = 0, carX = roadCenterX(0), carHeading = Math.atan2(roadCenterX(1)-roadCenterX(-1),2), curSpeed = 0, carHeight = null, steerInput = 0;
 let vehicleGroup = buildVehicle(chosenVehicleKey);
 scene.add(vehicleGroup);
 function swapVehicle(key){
@@ -767,7 +810,7 @@ function resetToRoad(){
   curSpeed = 0;
   carHeight = drivingSurfaceHeight(carX,carDistance)+0.50;
   vehicleGroup.position.set(carX,carHeight,carDistance);
-  rebuildGround(carX,carDistance); rebuildRoad(carDistance-16); updateProps(carDistance);
+  rebuildGroundSync(carX,carDistance); rebuildRoad(carDistance-16); updateProps(carDistance);
 }
 
 function animate(now){
@@ -778,7 +821,11 @@ function animate(now){
   const specs = VEHICLE_SPECS[chosenVehicleKey];
 
   const left = keys['a'], right = keys['d'];
-  const steering = (right?1:0)-(left?1:0);
+  const steeringTarget = (right?1:0)-(left?1:0);
+  // Smooth the raw key input itself so steering eases in/out instead of snapping,
+  // which reads as much less twitchy at speed.
+  steerInput = moveToward(steerInput, steeringTarget, 6*dt);
+  const steering = steerInput;
 
   const forward = keys['w'], back = keys['s'];
   const boosting = keys['shiftleft'];
@@ -790,10 +837,10 @@ function animate(now){
   const tractionForward = maxForward*(onRoad ? 1 : 0.42);
   const tractionReverse = maxReverse*(onRoad ? 1 : 0.55);
   if(braking) curSpeed = moveToward(curSpeed,0,58*dt);
-  else if(forward) curSpeed = moveToward(curSpeed,tractionForward,(boosting?3.4:2.25)*dt);
-  else if(back) curSpeed = moveToward(curSpeed,-tractionReverse,2.8*dt);
+  else if(forward) curSpeed = moveToward(curSpeed,tractionForward,(boosting?6.2:4.4)*dt);
+  else if(back) curSpeed = moveToward(curSpeed,-tractionReverse,4.6*dt);
   else curSpeed = moveToward(curSpeed,0,1.35*dt);
-  if(!onRoad && Math.abs(curSpeed)>tractionForward) curSpeed = moveToward(curSpeed,Math.sign(curSpeed)*tractionForward,32*dt);
+  if(!onRoad && Math.abs(curSpeed)>tractionForward) curSpeed = moveToward(curSpeed,Math.sign(curSpeed)*tractionForward,3.6*dt);
   if(onRoad && Math.abs(steering)>0 && Math.abs(curSpeed)>maxForward*.72) curSpeed = moveToward(curSpeed,Math.sign(curSpeed)*maxForward*.72,4.4*dt);
   if(Math.abs(curSpeed)>0.08){
     const steeringRate = 1.55*(0.35+0.65*clamp(Math.abs(curSpeed)/maxForward,0,1));
@@ -821,7 +868,7 @@ function animate(now){
   if(viewMode==='chase'){
     const back2 = dir.clone().multiplyScalar(-9-specs.len*0.6);
     const desired = vehicleGroup.position.clone().add(back2).add(new THREE.Vector3(0,4.2+specs.h,0));
-    camera.position.lerp(desired, Math.min(1,3.2*dt));
+    camera.position.lerp(desired, 1-Math.exp(-6*dt));
     const lookAhead = vehicleGroup.position.clone().add(dir.clone().multiplyScalar(14)).add(new THREE.Vector3(0,1.6,0));
     camera.lookAt(lookAhead);
   } else {
@@ -835,7 +882,8 @@ function animate(now){
   const tp = TIME_PRESETS[timeOfDay];
   sunMesh.position.copy(camera.position).add(new THREE.Vector3(tp.sunDir[0],tp.sunDir[1],tp.sunDir[2]).multiplyScalar(1150));
 
-  if(Math.abs(carDistance-lastGroundZ)>55 || Math.abs(carX-lastGroundX)>55) rebuildGround(carX, carDistance);
+  if(!groundJob && (Math.abs(carDistance-lastGroundZ)>40 || Math.abs(carX-lastGroundX)>40)) startGroundRebuild(carX, carDistance);
+  stepGroundRebuild();
   rebuildRoad(carDistance-16);
   updateWater(now,carDistance);
 
@@ -877,7 +925,7 @@ document.getElementById('beginBtn').addEventListener('click', ()=>{
 
   swapVehicle(chosenVehicleKey);
   applyEnvironment();
-  rebuildGround(roadCenterX(0),0);
+  rebuildGroundSync(roadCenterX(0),0);
   rebuildRoad(-16);
   updateProps(0);
 
